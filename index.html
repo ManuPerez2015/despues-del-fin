@@ -26,7 +26,7 @@ button{font-family:inherit;font-weight:700;color:inherit;cursor:pointer}
 #clock{width:104px;height:10px;position:relative;margin-right:3px;background:linear-gradient(90deg,#f2a45b 0,#7fd0e8 10%,#7fd0e8 55%,#e0703a 68%,#2a2f66 80%,#12143a 100%);box-shadow:0 0 0 3px #0b0914}
 #tick{position:absolute;top:-3px;width:4px;height:16px;background:#fff;box-shadow:0 0 0 1px #000}
 #inf{padding:5px 9px;background:#7a1f2a;color:#fff;border:0;animation:bl .9s steps(2) infinite}
-#bagBtn,#muteBtn,#mapBtn,#callBtn{pointer-events:auto;padding:6px 10px;border:0;font-size:inherit}
+#bagBtn,#pauseBtn,#cfgBtn,#mapBtn,#callBtn{pointer-events:auto;padding:6px 10px;border:0;font-size:inherit}
 #toasts{position:absolute;left:50%;top:max(96px,14vh);transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;width:80%;max-width:360px}
 .toast{padding:6px 10px;font-size:clamp(11px,2.3vmin,14px);text-align:center;animation:fi .2s}
 @keyframes fi{from{opacity:0;transform:translateY(-6px)}}
@@ -74,8 +74,9 @@ button{font-family:inherit;font-weight:700;color:inherit;cursor:pointer}
       <div id="inf" class="px" hidden></div>
       <div id="clock"><i id="tick"></i></div>
       <button id="bagBtn" class="px"><img id="bagImg" class="ic" alt=""> Mochila</button>
-      <button id="muteBtn" class="px">Sonido: si</button>
-      <button id="mapBtn" class="px" hidden>Mapa</button>
+      <button id="mapBtn" class="px">Mapa</button>
+      <button id="pauseBtn" class="px">Pausa</button>
+      <button id="cfgBtn" class="px">Config</button>
       <button id="callBtn" class="px" hidden>Llamar al caballo</button>
     </div>
   </div>
@@ -1744,7 +1745,7 @@ function craftArrows(){
 // ===== Mapa =====
 function mapUnlocked(){return S.special.indexOf('mapa')>=0;}
 function openMap(){
-  if(!mapUnlocked())return;
+  if(!mapUnlocked()){toast('Todavía no tienes el mapa. Está escondido: resuelve los misterios de las casas para encontrarlo.');Snd.sfx('alert');return;}
   const sc=6,sw=(c,t)=>'<div style="display:flex;align-items:center"><span style="display:inline-block;width:10px;height:10px;flex:none;background:'+c+';margin-right:6px"></span>'+t+'</div>';
   let h='<canvas id="mcv" width="'+(MW*sc)+'" height="'+(MH*sc)+'" style="height:64vh;width:auto;max-width:100%;image-rendering:pixelated;display:block;margin:0 auto;background:#0b0914"></canvas>';
   h+='<div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:.82em;font-weight:400">'
@@ -3559,6 +3560,40 @@ function areaHud(){
 }
 $('callBtn').addEventListener('click',callHorse);
 
+// ---------- Pausa y configuración ----------
+function pauseGame(){
+  if(ui!==null||!S||S.over)return;
+  showModal('Pausa','El juego está detenido.','Continuar',null);
+}
+function openConfig(){
+  const rb=(t,d,id,l)=>'<div class="row"><div class="g">'+t+'<small>'+d+'</small></div><button class="btn" data-cfg="'+id+'">'+l+'</button></div>';
+  openPanel('Config',
+    rb('Sonido','Música y efectos.','sound',Snd.isMuted()?'Activar':'Silenciar')
+   +rb('Actualizar','Busca la última versión del juego y recarga la app.','update','Actualizar')
+   +rb('Reiniciar juego','Borra tu partida y empieza una nueva.','restart','Reiniciar')
+   +rb('Salir','Guarda y vuelve a la pantalla de inicio.','exit','Salir'));
+}
+function cfgAct(k,btn){
+  if(k==='sound'){Snd.init();Snd.resume();Snd.toggle();if(!Snd.isMuted())Snd.sfx('click');openConfig();}
+  else if(k==='exit'){save();$('panel').hidden=true;ui=null;showTitle();}
+  else if(k==='restart'){
+    if(!btn.dataset.sure){btn.dataset.sure='1';btn.textContent='¿Seguro? Pulsa otra vez';return;}
+    $('panel').hidden=true;ui=null;Snd.sfx('click');clearSave();startGame(newState(Math.floor(Math.random()*1e9)+1));
+  }else if(k==='update'){
+    save();btn.textContent='Actualizando...';
+    const done=()=>location.reload();
+    try{
+      const ps=[];
+      if(navigator.serviceWorker)ps.push(navigator.serviceWorker.getRegistrations().then(rs=>Promise.all(rs.map(r=>r.unregister()))));
+      if(window.caches)ps.push(caches.keys().then(ks=>Promise.all(ks.map(x=>caches.delete(x)))));
+      Promise.all(ps).then(done,done);
+    }catch(e){done();}
+  }
+}
+$('pbody').addEventListener('click',e=>{const b=e.target.closest('button[data-cfg]');if(b&&!b.disabled)cfgAct(b.dataset.cfg,b);});
+$('pauseBtn').addEventListener('click',pauseGame);
+$('cfgBtn').addEventListener('click',()=>{if(ui===null)openConfig();});
+
 // ===== Render =====
 const canvas=$('cv'), ctx=canvas.getContext('2d'), lcv=cv(10,10), lctx=lcv.getContext('2d');
 const dust=[];for(let i=0;i<36;i++)dust.push({x:Math.random(),y:Math.random(),s:0.5+Math.random()});
@@ -3709,7 +3744,7 @@ function hud(){
   if(ready){pr.hidden=false;const lab=curEnt.lab||KIND[curEnt.k].label;if(pr.dataset.k!==lab){pr.dataset.k=lab;pr.textContent=lab;}}
   else{pr.hidden=true;pr.dataset.k='';}
   $('btnA').classList.toggle('ready',ready);
-  updateWeaponHud();areaHud();$('mapBtn').hidden=!mapUnlocked();$('toasts').classList.toggle('low',!!S.in);
+  updateWeaponHud();areaHud();$('toasts').classList.toggle('low',!!S.in);
 }
 function showModal(title,text,btn,cb){
   ui='modal';$('mt').textContent=title;$('mp').textContent=text;$('mb').textContent=btn;$('modal').hidden=false;
@@ -3816,6 +3851,7 @@ window.addEventListener('keydown',e=>{
   if(k==='escape'&&ui==='panel')closePanel();
   if((k==='j'||k==='x'||k==='z')&&ui===null)attack();
   if(k==='q'&&ui===null)cycleWeapon();
+  if(k==='p'){if(ui===null)pauseGame();}
   if(k==='m'){if(ui===null)openMap();else if(ui==='panel')closePanel();}
 });
 window.addEventListener('keyup',e=>{input.keys[e.key.toLowerCase()]=false;});
@@ -3840,9 +3876,6 @@ $('pbody').addEventListener('click',e=>{
 $('bNew').addEventListener('click',()=>{Snd.init();Snd.resume();Snd.startMusic();Snd.sfx('click');clearSave();startGame(newState(Math.floor(Math.random()*1e9)+1));});
 $('bCont').addEventListener('click',()=>{Snd.init();Snd.resume();Snd.startMusic();Snd.sfx('click');const s=loadSave();if(s)startGame(s);});
 window.addEventListener('resize',resize);
-function muteLabel(){$('muteBtn').textContent='Sonido: '+(Snd.isMuted()?'no':'si');}
-$('muteBtn').addEventListener('click',()=>{Snd.init();Snd.resume();Snd.toggle();muteLabel();if(!Snd.isMuted())Snd.sfx('click');});
-muteLabel();
 // ===== Inicio =====
 let last=0;
 function frame(ts){
