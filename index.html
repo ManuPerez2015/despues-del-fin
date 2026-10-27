@@ -63,6 +63,10 @@ button{font-family:inherit;font-weight:700;color:inherit;cursor:pointer}
 #title p{max-width:420px;margin:0;font-size:clamp(12px,2.3vmin,15px);line-height:1.45;color:#d8cfe6}
 #fade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .6s;z-index:50}
 </style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0d0f1a">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 </head>
 <body>
 <div id="stage">
@@ -3894,5 +3898,6 @@ showTitle();
 requestAnimationFrame(frame);
 })();
 </script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(){});});}</script>
 </body>
 </html>
